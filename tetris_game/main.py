@@ -253,6 +253,42 @@ def main():
                         1
                     )
         
+        # Draw borders around play area
+        border_color = (255, 255, 255)
+        border_width = 2
+        # Right border
+        pygame.draw.line(
+            screen,
+            border_color,
+            (GRID_WIDTH * BLOCK_SIZE - 1, 0),
+            (GRID_WIDTH * BLOCK_SIZE - 1, SCREEN_HEIGHT),
+            border_width
+        )
+        # Left border
+        pygame.draw.line(
+            screen,
+            border_color,
+            (0, 0),
+            (0, SCREEN_HEIGHT),
+            border_width
+        )
+        # Top border
+        pygame.draw.line(
+            screen,
+            border_color,
+            (0, 0),
+            (GRID_WIDTH * BLOCK_SIZE, 0),
+            border_width
+        )
+        # Bottom border
+        pygame.draw.line(
+            screen,
+            border_color,
+            (0, SCREEN_HEIGHT - 1),
+            (GRID_WIDTH * BLOCK_SIZE, SCREEN_HEIGHT - 1),
+            border_width
+        )
+        
         # Draw current piece
         current_piece.draw(screen)
 
