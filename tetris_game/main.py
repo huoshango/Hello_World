@@ -8,6 +8,8 @@ SCREEN_HEIGHT = 600
 BLOCK_SIZE = 30
 GRID_WIDTH = SCREEN_WIDTH // BLOCK_SIZE
 GRID_HEIGHT = SCREEN_HEIGHT // BLOCK_SIZE
+INITIAL_FALL_INTERVAL = 0.5  # seconds
+LEVEL_INTERVAL = 10  # lines needed to level up
 
 # Tetromino shapes
 SHAPES = [
@@ -56,18 +58,20 @@ def valid_space(shape, grid, x, y):
     return True
 
 def lock_piece(shape, grid, x, y, color):
-    # Adjust y position if piece is at bottom
+    # Adjust x and y positions to ensure piece is within grid bounds
     while y + len(shape) > GRID_HEIGHT:
         y -= 1
-        
-    # Adjust y position if piece is at top
     while y < 0:
         y += 1
+    while x + len(shape[0]) > GRID_WIDTH:
+        x -= 1
+    while x < 0:
+        x += 1
         
     for i, row in enumerate(shape):
         for j, cell in enumerate(row):
             if cell:
-                # Check if position is within grid bounds
+                # Final bounds check
                 if 0 <= y + i < GRID_HEIGHT and 0 <= x + j < GRID_WIDTH:
                     grid[y + i][x + j] = color
 
@@ -86,8 +90,10 @@ def main():
     current_piece = Tetromino(random.choice(SHAPES))
     next_piece = Tetromino(random.choice(SHAPES))
     score = 0
+    lines_cleared = 0
+    level = 1
     last_fall_time = time.time()
-    fall_interval = 0.5  # seconds
+    fall_interval = INITIAL_FALL_INTERVAL
     running = True
     
     while running:
@@ -96,7 +102,29 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
+                if event.key == pygame.K_p:  # Pause game
+                    paused = True
+                    while paused:
+                        for event in pygame.event.get():
+                            if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                                paused = False
+                        # Draw pause screen
+                        screen.fill((0, 0, 0))
+                        # Pause title
+                        draw_text(screen, "Paused", 50, SCREEN_WIDTH//2 - 60, SCREEN_HEIGHT//2 - 100)
+                        # Current score
+                        draw_text(screen, f"Score: {score}", 30, SCREEN_WIDTH//2 - 50, SCREEN_HEIGHT//2 - 50)
+                        # Next piece preview
+                        draw_text(screen, "Next:", 30, SCREEN_WIDTH//2 - 30, SCREEN_HEIGHT//2)
+                        next_piece.x = GRID_WIDTH//2 - len(next_piece.shape[0])//2
+                        next_piece.y = GRID_HEIGHT//2 + 2
+                        next_piece.draw(screen)
+                        # Resume instructions
+                        draw_text(screen, "Press P to resume", 30, SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT - 50)
+                        pygame.display.flip()
+                        clock.tick(5)  # Slow tick rate while paused
+                    last_fall_time = time.time()  # Reset fall timer after pause
+                elif event.key == pygame.K_LEFT:
                     if valid_space(current_piece.shape, grid, current_piece.x - 1, current_piece.y):
                         current_piece.x -= 1
                 elif event.key == pygame.K_RIGHT:
@@ -108,8 +136,16 @@ def main():
                 elif event.key == pygame.K_UP:
                     # Rotate shape and convert to list of lists
                     rotated = [list(row) for row in zip(*current_piece.shape[::-1])]
-                    if valid_space(rotated, grid, current_piece.x, current_piece.y):
+                    # Adjust x position if rotation would cause out of bounds
+                    new_x = current_piece.x
+                    if new_x + len(rotated[0]) > GRID_WIDTH:
+                        new_x = GRID_WIDTH - len(rotated[0])
+                    if new_x < 0:
+                        new_x = 0
+                    # Check if rotated piece fits in new position
+                    if valid_space(rotated, grid, new_x, current_piece.y):
                         current_piece.shape = rotated
+                        current_piece.x = new_x
         
         # Automatic falling
         current_time = time.time()
@@ -135,7 +171,8 @@ def main():
                     del grid[row_index]
                     grid.insert(0, [(0, 0, 0) for _ in range(GRID_WIDTH)])
                 
-                # Update score based on number of rows cleared
+                # Update score and lines cleared
+                lines_cleared += len(rows_to_remove)
                 if len(rows_to_remove) == 1:
                     score += 100
                 elif len(rows_to_remove) == 2:
@@ -145,8 +182,57 @@ def main():
                 elif len(rows_to_remove) == 4:
                     score += 800
                 
-                current_piece  = Tetromino(random.choice(SHAPES))  
-  
+                # Check for level up
+                if lines_cleared >= LEVEL_INTERVAL * level:
+                    level += 1
+                    fall_interval = max(0.1, INITIAL_FALL_INTERVAL - (level-1)*0.05)
+                
+                current_piece = next_piece
+                next_piece = Tetromino(random.choice(SHAPES))
+                
+                # Reset new piece position
+                current_piece.y = 0
+                current_piece.x = GRID_WIDTH // 2 - len(current_piece.shape[0]) // 2
+                
+                # Check if new piece can be placed
+                if not valid_space(current_piece.shape, grid, current_piece.x, current_piece.y):
+                    # Game over - show final score and restart button
+                    while True:
+                        screen.fill((0, 0, 0))
+                        draw_text(screen, "Game Over!", 50, SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 100)
+                        draw_text(screen, f"Final Score: {score}", 40, SCREEN_WIDTH//2 - 120, SCREEN_HEIGHT//2 - 50)
+                        
+                        # Draw restart button
+                        restart_rect = pygame.Rect(SCREEN_WIDTH//2 - 75, SCREEN_HEIGHT//2 + 20, 150, 50)
+                        pygame.draw.rect(screen, (0, 255, 0), restart_rect)
+                        draw_text(screen, "Restart", 40, SCREEN_WIDTH//2 - 50, SCREEN_HEIGHT//2 + 35)
+                        
+                        pygame.display.flip()
+                        
+                        # Handle events
+                        for event in pygame.event.get():
+                            if event.type == pygame.QUIT:
+                                running = False
+                                return
+                            elif event.type == pygame.MOUSEBUTTONDOWN:
+                                if restart_rect.collidepoint(event.pos):
+                                    # Reset game state
+                                    grid = create_grid()
+                                    current_piece = Tetromino(random.choice(SHAPES))
+                                    next_piece = Tetromino(random.choice(SHAPES))
+                                    score = 0
+                                    lines_cleared = 0
+                                    level = 1
+                                    fall_interval = INITIAL_FALL_INTERVAL
+                                    last_fall_time = time.time()
+                                    break
+                        else:
+                            continue
+                        break
+                
+                # Reset fall timer for new piece
+                last_fall_time = time.time()
+
         # Draw everything
         screen.fill((0, 0, 0))
         
@@ -176,8 +262,10 @@ def main():
         next_piece.y = 2
         next_piece.draw(screen)
         
-        # Draw score
+        # Draw game info
         draw_text(screen, f"Score: {score}", 30, SCREEN_WIDTH + 10, 150)
+        draw_text(screen, f"Level: {level}", 30, SCREEN_WIDTH + 10, 200)
+        draw_text(screen, f"Speed: {1/fall_interval:.1f}x", 30, SCREEN_WIDTH + 10, 250)
         
         pygame.display.flip()
         clock.tick(30)
