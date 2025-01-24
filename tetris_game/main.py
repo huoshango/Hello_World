@@ -142,10 +142,17 @@ def main():
                         new_x = GRID_WIDTH - len(rotated[0])
                     if new_x < 0:
                         new_x = 0
-                    # Check if rotated piece fits in new position
-                    if valid_space(rotated, grid, new_x, current_piece.y):
+                    # Check if rotated piece fits in new position (with vertical adjustment)
+                    new_y = current_piece.y
+                    # Ensure rotation doesn't push piece below grid
+                    max_y = GRID_HEIGHT - len(rotated)
+                    if new_y > max_y:
+                        new_y = max_y
+                    
+                    if valid_space(rotated, grid, new_x, new_y):
                         current_piece.shape = rotated
                         current_piece.x = new_x
+                        current_piece.y = new_y
         
         # Automatic falling
         current_time = time.time()
@@ -173,14 +180,8 @@ def main():
                 
                 # Update score and lines cleared
                 lines_cleared += len(rows_to_remove)
-                if len(rows_to_remove) == 1:
-                    score += 100
-                elif len(rows_to_remove) == 2:
-                    score += 300
-                elif len(rows_to_remove) == 3:
-                    score += 500
-                elif len(rows_to_remove) == 4:
-                    score += 800
+                # Score based on level and lines cleared
+                score += (100 * len(rows_to_remove) ** 2) * level
                 
                 # Check for level up
                 if lines_cleared >= LEVEL_INTERVAL * level:
@@ -216,7 +217,7 @@ def main():
                                 return
                             elif event.type == pygame.MOUSEBUTTONDOWN:
                                 if restart_rect.collidepoint(event.pos):
-                                    # Reset game state
+                                    # Full game reset
                                     grid = create_grid()
                                     current_piece = Tetromino(random.choice(SHAPES))
                                     next_piece = Tetromino(random.choice(SHAPES))
@@ -225,6 +226,7 @@ def main():
                                     level = 1
                                     fall_interval = INITIAL_FALL_INTERVAL
                                     last_fall_time = time.time()
+                                    running = True
                                     break
                         else:
                             continue
